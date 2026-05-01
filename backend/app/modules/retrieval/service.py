@@ -1,9 +1,9 @@
 import re
 
+from app.core.config import settings
 from app.infrastructure.cache import build_cache_key
 from app.infrastructure.lawinfo_client import LawInfoClient, LawInfoError
 from app.infrastructure.lawinfo_urls import case_url
-from app.core.config import settings
 from app.modules.retrieval.ranker import filter_ranked_chunks
 from app.modules.retrieval.schemas import (
     EvidenceChunk,
@@ -15,9 +15,9 @@ from app.modules.shared import StatusResponse
 
 
 CASE_NUMBER_PATTERN = re.compile(
-    r"\d{4}\s*[-–]?\s*[가-힣]{1,4}\s*[-–]?\s*\d+|\d{2,4}\s*[-–]?\s*[가-힣]{1,4}\s*[-–]?\s*\d+",
+    r"\d{2,4}\s*[-–]?\s*[가-힣]{1,4}\s*[-–]?\s*\d+",
 )
-LAW_NAME_PATTERN = re.compile(r"[가-힣A-Za-z0-9·ㆍ\s]+(?:법|령|규칙)")
+LAW_NAME_PATTERN = re.compile(r"[가-힣A-Za-z0-9·\s]+(?:법|규칙)")
 ARTICLE_PATTERN = re.compile(r"제\s*\d+\s*조(?:의\s*\d+)?")
 KEYWORD_PATTERN = re.compile(r"[가-힣A-Za-z0-9]{2,}")
 

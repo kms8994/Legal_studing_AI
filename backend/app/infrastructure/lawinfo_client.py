@@ -37,7 +37,7 @@ class LawInfoClient:
         matches = await self.search_cases_by_number(case_number, display=5)
         exact = self._select_case_match(matches, case_number)
         if exact is None:
-            raise LawInfoError(f"판례 번호로 공식 판례를 찾을 수 없습니다: {case_number}", status_code=404)
+            raise LawInfoError(f"사건번호로 공식 판례를 찾을 수 없습니다: {case_number}", status_code=404)
 
         document = await self.get_case_by_id(exact.id, title=exact.title)
         return asdict(document)
@@ -121,7 +121,7 @@ class LawInfoClient:
 
     async def get_statute_article(self, law_name: str, article: str) -> dict[str, object]:
         law = await self._find_law(law_name)
-        law_id = self._first_present(law, ("법령ID", "법령ID값", "ID", "id"))
+        law_id = self._first_present(law, ("법령ID", "ID", "id"))
         mst = self._first_present(law, ("법령일련번호", "MST", "mst", "lsi_seq"))
         if not law_id and not mst:
             raise LawInfoError(f"법령 ID를 찾을 수 없습니다: {law_name}", status_code=404)
@@ -173,7 +173,8 @@ class LawInfoClient:
         if not self.api_key:
             raise LawInfoError("LAWINFO_API_KEY가 설정되어 있지 않습니다.", status_code=500)
 
-        request_url = self._build_url(path, {"OC": self.api_key, **params})
+        request_params = {"OC": self.api_key, **params}
+        request_url = self._build_url(path, request_params)
         source_url = self._build_url(path, params)
 
         last_error: Exception | None = None
@@ -185,6 +186,8 @@ class LawInfoClient:
                     self._raise_if_api_error(parsed)
                     return parsed, source_url
                 return text, source_url
+            except LawInfoError:
+                raise
             except (OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError, ET.ParseError) as exc:
                 last_error = exc
                 if attempt < self.max_retries:
@@ -194,8 +197,26 @@ class LawInfoClient:
 
     def _raise_if_api_error(self, payload: dict[str, Any]) -> None:
         result, message = self._find_api_error(payload)
-        if result and ("실패" in result or "오류" in result):
-            raise LawInfoError(message or result, status_code=502)
+        if not result and not message:
+            return
+
+        combined = f"{result} {message}".strip()
+        if any(token in combined for token in ("실패", "오류", "에러")):
+            raise LawInfoError(self._friendly_api_error(result, message), status_code=502)
+
+    def _friendly_api_error(self, result: str, message: str) -> str:
+        combined = f"{result} {message}".strip()
+        if "서버장비의 IP주소 및 도메인주소" in combined:
+            return (
+                "국가법령정보센터에서 호출 서버의 IP/도메인을 허용하지 않았습니다. "
+                "Open API의 등록 IP에 실제 호출 주체의 공인 IP 또는 도메인만 등록해 주세요."
+            )
+        if "필수입력" in combined or "필수 입력값" in combined:
+            return (
+                "국가법령정보센터가 요청을 필수 입력값 누락으로 거절했습니다. "
+                "OC 코드가 활성화되어 있는지, 등록 IP/도메인 칸에 설명 문구 없이 실제 도메인만 들어있는지 확인해 주세요."
+            )
+        return message or result or "국가법령정보센터 API가 요청을 거절했습니다."
 
     def _find_api_error(self, value: Any) -> tuple[str, str]:
         if isinstance(value, dict):
@@ -278,7 +299,7 @@ class LawInfoClient:
         if flattened:
             return flattened
 
-        if isinstance(raw, dict):
+        if isinstance(raw, dict) and not self._find_api_error(raw)[0]:
             return [raw]
         return []
 
