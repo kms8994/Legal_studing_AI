@@ -96,7 +96,7 @@ class GeminiClient:
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        except (OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise GeminiError(f"Gemini API 호출에 실패했습니다: {exc}") from exc
 
     def _extract_text(self, response: dict[str, Any]) -> str:

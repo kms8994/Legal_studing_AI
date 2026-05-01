@@ -164,7 +164,7 @@ class LawInfoClient:
                     self._raise_if_api_error(parsed)
                     return parsed, source_url
                 return text, source_url
-            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ET.ParseError) as exc:
+            except (OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError, ET.ParseError) as exc:
                 last_error = exc
                 if attempt < self.max_retries:
                     await asyncio.sleep(0.25 * (attempt + 1))
