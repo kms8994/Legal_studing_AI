@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: case-ai-learning-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: Case AI Learning Service
+      - key: BACKEND_CORS_ORIGINS
+        value: "*"
+      - key: LAWINFO_BASE_URL
+        value: http://www.law.go.kr/DRF
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: VECTOR_TOP_K
+        value: "5"
+      - key: RETRIEVAL_SCORE_THRESHOLD
+        value: "0.72"
