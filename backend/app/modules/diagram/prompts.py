@@ -1,0 +1,2 @@
+DIAGRAM_PROMPT_VERSION = "diagram-v1"
+

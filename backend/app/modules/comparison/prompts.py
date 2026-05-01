@@ -1,0 +1,2 @@
+COMPARISON_PROMPT_VERSION = "comparison-v1"
+
