@@ -36,7 +36,7 @@ type MvpAnalyzeResponse = {
 
 type VerificationResponse = {
   status: string;
-  message: string;
+  message?: string;
 };
 
 type GeneralResponse = {
@@ -120,11 +120,19 @@ export default function HomePage() {
       });
       setExpertResult(result);
 
-      const verify = await post<VerificationResponse>("/verification/check", {
-        claim: result.diagrams.legal_reasoning.title,
-        official_text: result.evidence_chunks[0]?.chunk_text ?? "",
-      });
-      setVerification(verify);
+      try {
+        const verify = await post<VerificationResponse>("/verification/check", {
+          input_text: inputText,
+          official_text: result.evidence_chunks[0]?.chunk_text ?? "",
+          source_url: result.evidence_chunks[0]?.source_url ?? "",
+        });
+        setVerification(verify);
+      } catch (verifyError) {
+        setVerification({
+          status: "unknown",
+          message: verifyError instanceof Error ? verifyError.message : "검증을 완료하지 못했습니다.",
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "분석 중 문제가 발생했습니다.");
     } finally {
@@ -277,7 +285,7 @@ function ExpertView({
       <div className="metric-row">
         <InfoCard label="분석 경로" value={result.mode} />
         <InfoCard label="근거 수" value={`${result.evidence_chunks.length}개`} />
-        <InfoCard label="검증 상태" value={verification?.status ?? "확인 중"} />
+        <InfoCard label="검증 상태" value={verificationLabel(verification)} />
       </div>
 
       <div className="diagram-layout">
@@ -291,10 +299,13 @@ function ExpertView({
           <h3>근거</h3>
           <p>{result.evidence_chunks[0]?.source_name ?? "근거 없음"}</p>
         </div>
-        <a href={result.evidence_chunks[0]?.source_url} rel="noreferrer" target="_blank">
-          원문 보기
-        </a>
+        {result.evidence_chunks[0]?.source_url && (
+          <a href={result.evidence_chunks[0].source_url} rel="noreferrer" target="_blank">
+            원문 보기
+          </a>
+        )}
       </div>
+      {verification?.message && <p className="verification-note">{verification.message}</p>}
       <p className="disclaimer">{result.disclaimer}</p>
     </div>
   );
@@ -345,6 +356,17 @@ function InfoCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+function verificationLabel(verification: VerificationResponse | null) {
+  if (!verification) return "확인 중";
+  const labels: Record<string, string> = {
+    valid: "검증 완료",
+    modified: "변경 가능성",
+    overruled: "변경 판례",
+    unknown: "확인 불가",
+  };
+  return labels[verification.status] ?? verification.status;
+}
+
 function EmptyState({ panelOpen }: { panelOpen: boolean }) {
   return (
     <div className="empty-state">
@@ -371,11 +393,26 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     const detail = (payload as unknown as { detail?: unknown }).detail;
     const message =
       payload.error?.message ??
-      (typeof detail === "string" ? detail : detail ? JSON.stringify(detail) : "") ??
+      formatApiDetail(detail) ??
       "API 요청에 실패했습니다.";
     throw new Error(message || "API 요청에 실패했습니다.");
   }
   return payload.data;
+}
+
+function formatApiDetail(detail: unknown) {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (!item || typeof item !== "object") return String(item);
+        const typed = item as { loc?: unknown[]; msg?: string };
+        return typed.msg ? `${typed.loc?.join(".") ?? "요청"}: ${typed.msg}` : JSON.stringify(item);
+      })
+      .join(" / ");
+  }
+  return JSON.stringify(detail);
 }
 
 function fileToBase64(file: File) {

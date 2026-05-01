@@ -325,6 +325,7 @@ input[type="file"] {
 }
 
 .evidence-band p,
+.verification-note,
 .disclaimer,
 .empty-state p,
 .case-card p {
@@ -340,6 +341,18 @@ a {
 
 .disclaimer {
   font-size: 12px;
+}
+
+.verification-note {
+  max-height: 92px;
+  overflow: auto;
+  border: 1px solid #f8d7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  padding: 12px;
+  color: #9a3412;
+  font-size: 12px;
+  word-break: break-word;
 }
 
 .empty-state,
@@ -371,6 +384,10 @@ a {
   background: #fff1f2;
   color: var(--danger);
   font-weight: 800;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .general-grid {
