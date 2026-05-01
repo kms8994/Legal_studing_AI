@@ -3,9 +3,11 @@ import re
 from app.infrastructure.cache import build_cache_key
 from app.infrastructure.lawinfo_client import LawInfoClient, LawInfoError
 from app.infrastructure.lawinfo_urls import case_url
+from app.core.config import settings
 from app.modules.retrieval.ranker import filter_ranked_chunks
 from app.modules.retrieval.schemas import (
     EvidenceChunk,
+    LawInfoDiagnosticResponse,
     RetrievalEntityHints,
     RetrievalResult,
 )
@@ -13,7 +15,7 @@ from app.modules.shared import StatusResponse
 
 
 CASE_NUMBER_PATTERN = re.compile(
-    r"\d{4}\s*[가-힣]{1,4}\s*\d+|\d{2,4}\s*[가-힣]{1,4}\s*\d+",
+    r"\d{4}\s*[-–]?\s*[가-힣]{1,4}\s*[-–]?\s*\d+|\d{2,4}\s*[-–]?\s*[가-힣]{1,4}\s*[-–]?\s*\d+",
 )
 LAW_NAME_PATTERN = re.compile(r"[가-힣A-Za-z0-9·ㆍ\s]+(?:법|령|규칙)")
 ARTICLE_PATTERN = re.compile(r"제\s*\d+\s*조(?:의\s*\d+)?")
@@ -61,6 +63,10 @@ class RetrievalService:
         chunks: list[EvidenceChunk],
         top_k: int,
         score_threshold: float,
+        source: str = "local_fallback",
+        message: str | None = None,
+        attempted_query: str | None = None,
+        forced_status: str | None = None,
     ) -> RetrievalResult:
         evidence = filter_ranked_chunks(
             chunks,
@@ -68,10 +74,13 @@ class RetrievalService:
             score_threshold=score_threshold,
         )
         return RetrievalResult(
-            status="ok" if evidence else "insufficient_evidence",
+            status=forced_status or ("ok" if evidence else "insufficient_evidence"),
             query_hash=self.build_query_hash(query),
             hints=self.extract_hints(query),
             evidence_chunks=evidence,
+            source=source,
+            message=message,
+            attempted_query=attempted_query,
         )
 
     async def retrieve_official_case_evidence(
@@ -83,14 +92,16 @@ class RetrievalService:
     ) -> RetrievalResult:
         hints = self.extract_hints(query)
         chunks: list[EvidenceChunk] = []
+        attempted_query = hints.case_number or " ".join(hints.keywords[:5]) or self.normalize_query(query)
+        message: str | None = None
+        forced_status: str | None = None
         try:
             if hints.case_number:
                 document = await LawInfoClient().get_case_by_number(hints.case_number)
                 chunks = self._case_document_to_chunks(document, fallback_case_number=hints.case_number)
             else:
-                search_query = " ".join(hints.keywords[:5]) or self.normalize_query(query)
                 summaries = await LawInfoClient().search_cases(
-                    search_query,
+                    attempted_query,
                     search_scope=2,
                     display=min(top_k, 10),
                 )
@@ -111,15 +122,47 @@ class RetrievalService:
                             fallback_case_number=summary.case_number,
                         )
                     )
-        except LawInfoError:
+        except LawInfoError as exc:
             chunks = []
+            forced_status = "api_error"
+            message = str(exc)
 
         return self.build_result(
             query=query,
             chunks=chunks,
             top_k=top_k,
             score_threshold=score_threshold,
+            source="official_api" if chunks else "local_fallback",
+            message=message,
+            attempted_query=attempted_query,
+            forced_status=forced_status,
         )
+
+    async def diagnose_lawinfo(self, query: str = "자동차") -> LawInfoDiagnosticResponse:
+        if not settings.lawinfo_api_key:
+            return LawInfoDiagnosticResponse(
+                has_api_key=False,
+                base_url=settings.lawinfo_base_url,
+                status="missing_key",
+                message="LAWINFO_API_KEY가 설정되어 있지 않습니다.",
+            )
+
+        try:
+            samples = await LawInfoClient().search_cases(query, search_scope=1, display=1)
+            return LawInfoDiagnosticResponse(
+                has_api_key=True,
+                base_url=settings.lawinfo_base_url,
+                status="ok",
+                message="국가법령정보 API 검색 호출에 성공했습니다.",
+                sample_count=len(samples),
+            )
+        except LawInfoError as exc:
+            return LawInfoDiagnosticResponse(
+                has_api_key=True,
+                base_url=settings.lawinfo_base_url,
+                status="api_error",
+                message=str(exc),
+            )
 
     def _case_document_to_chunks(
         self,
@@ -149,7 +192,7 @@ class RetrievalService:
         return [EvidenceChunk(**chunk) for chunk in raw_chunks]
 
     def _compact(self, value: str) -> str:
-        return re.sub(r"\s+", "", value)
+        return re.sub(r"[\s\-–]+", "", value)
 
     def _clean_text(self, value: str) -> str:
         return re.sub(r"\s+", " ", value).strip()

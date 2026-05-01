@@ -40,9 +40,12 @@ class MvpService:
             evidence_chunks=evidence,
         )
         return MvpAnalyzeResponse(
-            mode="official-rag" if official_result.evidence_chunks else "demo-local-rag",
+            mode="official-rag" if official_result.evidence_chunks else "local-fallback",
             input_hash=normalized.text_hash,
             hints=hints,
+            retrieval_status=official_result.status,
+            retrieval_message=official_result.message,
+            retrieval_attempted_query=official_result.attempted_query,
             evidence_chunks=evidence,
             irac=irac,
             diagram=diagrams.legal_reasoning,

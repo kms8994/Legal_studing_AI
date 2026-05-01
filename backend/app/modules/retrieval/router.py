@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.modules.retrieval.schemas import RetrievalRequest, RetrievalResult
+from app.modules.retrieval.schemas import LawInfoDiagnosticResponse, RetrievalRequest, RetrievalResult
 from app.modules.retrieval.service import RetrievalService
 from app.modules.shared import ApiResponse, StatusResponse
 
@@ -21,4 +21,10 @@ async def analyze_query(request: RetrievalRequest) -> ApiResponse[RetrievalResul
         top_k=request.top_k,
         score_threshold=request.score_threshold,
     )
+    return ApiResponse(data=result)
+
+
+@router.get("/lawinfo-diagnostics", response_model=ApiResponse[LawInfoDiagnosticResponse])
+async def lawinfo_diagnostics(query: str = "자동차") -> ApiResponse[LawInfoDiagnosticResponse]:
+    result = await RetrievalService().diagnose_lawinfo(query=query)
     return ApiResponse(data=result)

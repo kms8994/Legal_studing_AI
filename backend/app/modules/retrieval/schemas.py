@@ -31,7 +31,18 @@ class RetrievalRequest(BaseModel):
 
 
 class RetrievalResult(BaseModel):
-    status: Literal["ok", "insufficient_evidence"]
+    status: Literal["ok", "insufficient_evidence", "api_error"]
     query_hash: str
     hints: RetrievalEntityHints
     evidence_chunks: list[EvidenceChunk]
+    source: Literal["official_api", "local_fallback"]
+    message: str | None = None
+    attempted_query: str | None = None
+
+
+class LawInfoDiagnosticResponse(BaseModel):
+    has_api_key: bool
+    base_url: str
+    status: Literal["ok", "missing_key", "api_error"]
+    message: str
+    sample_count: int = 0

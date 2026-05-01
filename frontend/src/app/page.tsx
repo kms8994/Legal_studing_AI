@@ -21,6 +21,9 @@ type MermaidDiagram = {
 type MvpAnalyzeResponse = {
   mode: string;
   input_hash: string;
+  retrieval_status: string;
+  retrieval_message?: string;
+  retrieval_attempted_query?: string;
   evidence_chunks: Array<{
     source_name: string;
     source_url: string;
@@ -155,7 +158,7 @@ export default function HomePage() {
         filename: file.name,
         file_base64: base64,
       });
-      return result.text;
+      return `[파일명: ${file.name}]\n${result.text}`;
     }
     const result = await post<{ extracted_text?: string; message?: string }>("/input/image", {
       mime_type: file.type,
@@ -283,10 +286,12 @@ function ExpertView({
   return (
     <div className="result-stack">
       <div className="metric-row">
-        <InfoCard label="분석 경로" value={result.mode} />
+        <InfoCard label="분석 경로" value={modeLabel(result.mode)} />
         <InfoCard label="근거 수" value={`${result.evidence_chunks.length}개`} />
         <InfoCard label="검증 상태" value={verificationLabel(verification)} />
       </div>
+
+      <RetrievalNotice result={result} />
 
       <div className="diagram-layout">
         <DiagramCard diagram={result.diagrams.party_relation} large />
@@ -299,7 +304,7 @@ function ExpertView({
           <h3>근거</h3>
           <p>{result.evidence_chunks[0]?.source_name ?? "근거 없음"}</p>
         </div>
-        {result.evidence_chunks[0]?.source_url && (
+        {isExternalUrl(result.evidence_chunks[0]?.source_url) && (
           <a href={result.evidence_chunks[0].source_url} rel="noreferrer" target="_blank">
             원문 보기
           </a>
@@ -307,6 +312,25 @@ function ExpertView({
       </div>
       {verification?.message && <p className="verification-note">{verification.message}</p>}
       <p className="disclaimer">{result.disclaimer}</p>
+    </div>
+  );
+}
+
+function RetrievalNotice({ result }: { result: MvpAnalyzeResponse }) {
+  if (result.mode === "official-rag") {
+    return (
+      <div className="retrieval-notice success">
+        공식 국가법령정보 API 근거를 사용했습니다.
+        {result.retrieval_attempted_query && <span> 검색어: {result.retrieval_attempted_query}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="retrieval-notice warning">
+      공식 API 근거를 가져오지 못해 업로드/입력 원문을 기준으로 분석했습니다.
+      {result.retrieval_attempted_query && <span> 시도한 검색어: {result.retrieval_attempted_query}</span>}
+      {result.retrieval_message && <span> 사유: {result.retrieval_message}</span>}
     </div>
   );
 }
@@ -365,6 +389,19 @@ function verificationLabel(verification: VerificationResponse | null) {
     unknown: "확인 불가",
   };
   return labels[verification.status] ?? verification.status;
+}
+
+function modeLabel(mode: string) {
+  const labels: Record<string, string> = {
+    "official-rag": "공식 API RAG",
+    "local-fallback": "입력 원문 분석",
+    "demo-local-rag": "입력 원문 분석",
+  };
+  return labels[mode] ?? mode;
+}
+
+function isExternalUrl(url?: string) {
+  return Boolean(url && /^https?:\/\//.test(url));
 }
 
 function EmptyState({ panelOpen }: { panelOpen: boolean }) {

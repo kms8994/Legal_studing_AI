@@ -87,16 +87,37 @@ class LawInfoClient:
         display: int = 20,
         page: int = 1,
     ) -> list[CaseSummary]:
-        params = {
-            "target": "prec",
-            "type": "JSON",
-            "nb": case_number,
-            "display": str(display),
-            "page": str(page),
-        }
-        raw, source_url = await self._request("lawSearch.do", params=params)
-        items = self._extract_items(raw, preferred_keys=("prec", "Prec", "판례"))
-        return [self._normalize_case_summary(item, source_url) for item in items]
+        attempts = (
+            {
+                "target": "prec",
+                "type": "JSON",
+                "nb": case_number,
+                "display": str(display),
+                "page": str(page),
+            },
+            {
+                "target": "prec",
+                "type": "JSON",
+                "search": "2",
+                "query": case_number,
+                "display": str(display),
+                "page": str(page),
+            },
+        )
+        last_error: LawInfoError | None = None
+        for params in attempts:
+            try:
+                raw, source_url = await self._request("lawSearch.do", params=params)
+                items = self._extract_items(raw, preferred_keys=("prec", "Prec", "판례"))
+                summaries = [self._normalize_case_summary(item, source_url) for item in items]
+                if summaries:
+                    return summaries
+            except LawInfoError as exc:
+                last_error = exc
+
+        if last_error:
+            raise last_error
+        return []
 
     async def get_statute_article(self, law_name: str, article: str) -> dict[str, object]:
         law = await self._find_law(law_name)
@@ -172,10 +193,26 @@ class LawInfoClient:
         raise LawInfoError(f"공식 법률 API 호출에 실패했습니다: {last_error}")
 
     def _raise_if_api_error(self, payload: dict[str, Any]) -> None:
-        result = str(payload.get("result", "")).strip()
-        message = str(payload.get("msg", "")).strip()
+        result, message = self._find_api_error(payload)
         if result and ("실패" in result or "오류" in result):
             raise LawInfoError(message or result, status_code=502)
+
+    def _find_api_error(self, value: Any) -> tuple[str, str]:
+        if isinstance(value, dict):
+            result = str(value.get("result", "")).strip()
+            message = str(value.get("msg", "")).strip()
+            if result or message:
+                return result, message
+            for child in value.values():
+                nested_result, nested_message = self._find_api_error(child)
+                if nested_result or nested_message:
+                    return nested_result, nested_message
+        elif isinstance(value, list):
+            for child in value:
+                nested_result, nested_message = self._find_api_error(child)
+                if nested_result or nested_message:
+                    return nested_result, nested_message
+        return "", ""
 
     def build_request_cache_key(self, path: str, params: dict[str, str]) -> str:
         encoded = urllib.parse.urlencode(sorted(params.items()))

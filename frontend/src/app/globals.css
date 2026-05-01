@@ -325,6 +325,7 @@ input[type="file"] {
 }
 
 .evidence-band p,
+.retrieval-notice,
 .verification-note,
 .disclaimer,
 .empty-state p,
@@ -337,6 +338,34 @@ a {
   color: var(--brand-dark);
   font-weight: 800;
   text-decoration: none;
+}
+
+.retrieval-notice {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.retrieval-notice span {
+  display: block;
+  margin-top: 4px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.retrieval-notice.success {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  color: #115e59;
+}
+
+.retrieval-notice.warning {
+  border-color: #f8d7aa;
+  background: #fff7ed;
+  color: #9a3412;
 }
 
 .disclaimer {
