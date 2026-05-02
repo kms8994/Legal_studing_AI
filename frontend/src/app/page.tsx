@@ -53,7 +53,7 @@ type GeneralResponse = {
   limitation: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
 const sampleText =
   "원고가 계약 해제를 주장했다. 피고는 손해배상 책임을 다투었다. 법원은 계약 해제 요건과 손해 발생 여부를 차례로 판단했다.";
