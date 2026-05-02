@@ -17,7 +17,7 @@ from app.modules.shared import StatusResponse
 CASE_NUMBER_PATTERN = re.compile(
     r"\d{2,4}\s*[-–]?\s*[가-힣]{1,4}\s*[-–]?\s*\d+",
 )
-LAW_NAME_PATTERN = re.compile(r"[가-힣A-Za-z0-9·\s]+(?:법|규칙)")
+LAW_NAME_PATTERN = re.compile(r"[가-힣A-Za-z0-9·\s]+(?:법|규칙)(?=\s|$|제)")
 ARTICLE_PATTERN = re.compile(r"제\s*\d+\s*조(?:의\s*\d+)?")
 KEYWORD_PATTERN = re.compile(r"[가-힣A-Za-z0-9]{2,}")
 
@@ -99,12 +99,15 @@ class RetrievalService:
             if hints.case_number:
                 document = await LawInfoClient().get_case_by_number(hints.case_number)
                 chunks = self._case_document_to_chunks(document, fallback_case_number=hints.case_number)
+                if not chunks:
+                    message = "공식 판례는 찾았지만 본문을 가져오지 못했습니다."
             else:
-                summaries = await LawInfoClient().search_cases(
-                    attempted_query,
-                    search_scope=2,
-                    display=min(top_k, 10),
-                )
+                summaries = []
+                for search_query in self._official_search_queries(query, hints):
+                    attempted_query = search_query
+                    summaries = await self._search_cases_with_fallback_scopes(search_query, top_k=top_k)
+                    if summaries:
+                        break
                 for summary in summaries[:top_k]:
                     if not summary.id:
                         continue
@@ -122,10 +125,14 @@ class RetrievalService:
                             fallback_case_number=summary.case_number,
                         )
                     )
+                if not summaries:
+                    message = "공식 국가법령정보 API 검색 결과가 없습니다."
+                elif not chunks:
+                    message = "공식 검색 결과에서 판례 본문을 가져오지 못했습니다."
         except LawInfoError as exc:
             chunks = []
-            forced_status = "api_error"
             message = str(exc)
+            forced_status = None if exc.status_code == 404 else "api_error"
 
         return self.build_result(
             query=query,
@@ -149,11 +156,19 @@ class RetrievalService:
 
         try:
             samples = await LawInfoClient().search_cases(query, search_scope=1, display=1)
+            if not samples:
+                return LawInfoDiagnosticResponse(
+                    has_api_key=True,
+                    base_url=settings.lawinfo_base_url,
+                    status="ok",
+                    message="국가법령정보 API 호출은 성공했지만 해당 검색어의 판례 결과가 없습니다.",
+                    sample_count=0,
+                )
             return LawInfoDiagnosticResponse(
                 has_api_key=True,
                 base_url=settings.lawinfo_base_url,
                 status="ok",
-                message="국가법령정보 API 검색 호출에 성공했습니다.",
+                message="국가법령정보 API 검색 호출에 성공했고 판례 결과를 확인했습니다.",
                 sample_count=len(samples),
             )
         except LawInfoError as exc:
@@ -190,6 +205,26 @@ class RetrievalService:
             overlap=150,
         )
         return [EvidenceChunk(**chunk) for chunk in raw_chunks]
+
+    async def _search_cases_with_fallback_scopes(self, query: str, *, top_k: int):
+        client = LawInfoClient()
+        for search_scope in (2, 1):
+            summaries = await client.search_cases(
+                query,
+                search_scope=search_scope,
+                display=min(top_k, 10),
+            )
+            if summaries:
+                return summaries
+        return []
+
+    def _official_search_queries(self, query: str, hints: RetrievalEntityHints) -> list[str]:
+        candidates = [
+            " ".join(hints.keywords[:5]),
+            " ".join(hints.keywords[:3]),
+            self.normalize_query(query),
+        ]
+        return [candidate for candidate in self._unique(candidates) if candidate]
 
     def _compact(self, value: str) -> str:
         return re.sub(r"[\s\-–]+", "", value)

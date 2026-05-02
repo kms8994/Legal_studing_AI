@@ -15,9 +15,8 @@ async def health() -> ApiResponse[StatusResponse]:
 
 @router.post("/analyze-query", response_model=ApiResponse[RetrievalResult])
 async def analyze_query(request: RetrievalRequest) -> ApiResponse[RetrievalResult]:
-    result = RetrievalService().build_result(
+    result = await RetrievalService().retrieve_official_case_evidence(
         query=request.query,
-        chunks=[],
         top_k=request.top_k,
         score_threshold=request.score_threshold,
     )

@@ -294,9 +294,9 @@ function ExpertView({
       <RetrievalNotice result={result} />
 
       <div className="diagram-layout">
-        <DiagramCard diagram={result.diagrams.party_relation} large />
-        <DiagramCard diagram={result.diagrams.event_timeline} />
-        <DiagramCard diagram={result.diagrams.legal_reasoning} />
+        <DiagramCard diagram={result.diagrams.party_relation} evidenceChunks={result.evidence_chunks} large />
+        <DiagramCard diagram={result.diagrams.event_timeline} evidenceChunks={result.evidence_chunks} />
+        <DiagramCard diagram={result.diagrams.legal_reasoning} evidenceChunks={result.evidence_chunks} />
       </div>
 
       <div className="evidence-band">
@@ -362,12 +362,62 @@ function GeneralView({ result }: { result: GeneralResponse }) {
   );
 }
 
-function DiagramCard({ diagram, large = false }: { diagram: MermaidDiagram; large?: boolean }) {
+function DiagramCard({
+  diagram,
+  evidenceChunks,
+  large = false,
+}: {
+  diagram: MermaidDiagram;
+  evidenceChunks: MvpAnalyzeResponse["evidence_chunks"];
+  large?: boolean;
+}) {
+  const readableCode = normalizeDiagramCode(diagram.code);
   return (
     <article className={`diagram-card ${large ? "large" : ""}`}>
       <h3>{diagram.title}</h3>
-      <pre className="mermaid">{diagram.code}</pre>
+      <DiagramTextSummary diagram={diagram} evidenceChunks={evidenceChunks} />
+      <pre className="mermaid">{readableCode}</pre>
     </article>
+  );
+}
+
+function DiagramTextSummary({
+  diagram,
+  evidenceChunks,
+}: {
+  diagram: MermaidDiagram;
+  evidenceChunks: MvpAnalyzeResponse["evidence_chunks"];
+}) {
+  const items = extractDiagramItems(diagram.code);
+  const source = evidenceChunks[0];
+  const excerpts = extractExactExcerpts(source?.chunk_text ?? "", diagram.title);
+
+  return (
+    <div className="diagram-summary">
+      <div>
+        <span>다이어그램 구성</span>
+        <ul>
+          {items.map((item, index) => (
+            <li key={`${item.title}-${index}`}>
+              <strong>{item.title}</strong>
+              {item.detail && <em>{item.detail}</em>}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {excerpts.length > 0 && (
+        <div>
+          <span>근거 원문</span>
+          <ul>
+            {excerpts.map((excerpt, index) => (
+              <li key={`${excerpt}-${index}`}>
+                <q>{excerpt}</q>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -491,6 +541,89 @@ function renderMermaid() {
     if (!window.mermaid) return;
     window.mermaid.run({ querySelector: ".mermaid" });
   }, 0);
+}
+
+function normalizeDiagramCode(code: string) {
+  return emphasizeMermaidLabels(forceReadableDiagramTheme(code.replace(/flowchart\s+LR/g, "flowchart TD")));
+}
+
+function extractDiagramItems(code: string) {
+  const items: Array<{ title: string; detail: string }> = [];
+  const pattern = /\["([^"]*?)"\]:::/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(code)) !== null) {
+    const label = match[1].split(/\s*<br\/>\s*/).map(stripHtml);
+    const [title, ...detail] = label;
+    if (title) {
+      items.push({
+        title: decodeMermaidLabel(title),
+        detail: decodeMermaidLabel(detail.join(" ")),
+      });
+    }
+  }
+  return items.slice(0, 6);
+}
+
+function extractExactExcerpts(text: string, diagramTitle: string) {
+  const sentences = splitSentences(text);
+  if (sentences.length === 0) return [];
+
+  if (diagramTitle.includes("당사자")) {
+    return pickSentences(sentences, ["원고", "피고", "청구", "주장", "다투", "책임"], 3);
+  }
+  if (diagramTitle.includes("흐름")) {
+    return sentences.slice(0, 4).map((sentence) => clipText(sentence, 120));
+  }
+  return pickSentences(sentences, ["요건", "판단", "법원", "결론", "조항", "책임"], 3);
+}
+
+function pickSentences(sentences: string[], keywords: string[], limit: number) {
+  const picked = sentences.filter((sentence) => keywords.some((keyword) => sentence.includes(keyword)));
+  return (picked.length ? picked : sentences).slice(0, limit).map((sentence) => clipText(sentence, 120));
+}
+
+function splitSentences(text: string) {
+  return text
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?。])\s+|(?<=다\.)\s*/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function stripHtml(value: string) {
+  return value.replace(/<\/?[^>]+>/g, "");
+}
+
+function decodeMermaidLabel(value: string) {
+  return value.replace(/&quot;/g, "\"").replace(/&#39;/g, "'").trim();
+}
+
+function clipText(text: string, limit: number) {
+  return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;
+}
+
+function forceReadableDiagramTheme(code: string) {
+  const classDefs: Record<string, string> = {
+    issue: "classDef issue fill:#eff6ff,stroke:#2563eb,color:#0f172a,stroke-width:1.5px",
+    rule: "classDef rule fill:#ecfdf5,stroke:#059669,color:#0f172a,stroke-width:1.5px",
+    apply: "classDef apply fill:#fff7ed,stroke:#ea580c,color:#0f172a,stroke-width:1.5px",
+    event: "classDef event fill:#f8fafc,stroke:#475569,color:#0f172a,stroke-width:1.5px",
+    partyA: "classDef partyA fill:#f5f3ff,stroke:#7c3aed,color:#0f172a,stroke-width:1.5px",
+    partyB: "classDef partyB fill:#fff1f2,stroke:#e11d48,color:#0f172a,stroke-width:1.5px",
+    decision: "classDef decision fill:#f0fdf4,stroke:#16a34a,color:#0f172a,stroke-width:1.5px",
+  };
+
+  return code.replace(/^(\s*)classDef\s+(\w+)\s+.*$/gm, (line, indent: string, name: string) => {
+    return classDefs[name] ? `${indent}${classDefs[name]}` : line;
+  });
+}
+
+function emphasizeMermaidLabels(code: string) {
+  return code.replace(/\["([^"]*?<br\/>[^"]*?)"\]/g, (_match, label: string) => {
+    if (label.includes("<strong>")) return `["${label}"]`;
+    const [title, ...description] = label.split("<br/>");
+    return `["<strong>${title}</strong><br/><span class='node-desc'>${description.join("<br/>")}</span>"]`;
+  });
 }
 
 declare global {

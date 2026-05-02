@@ -77,7 +77,7 @@ class LawInfoClient:
             "page": str(page),
         }
         raw, source_url = await self._request("lawSearch.do", params=params)
-        items = self._extract_items(raw, preferred_keys=("prec", "Prec", "판례"))
+        items = self._extract_items(raw, preferred_keys=("prec", "Prec", "판례"), allow_root_item=False)
         return [self._normalize_case_summary(item, source_url) for item in items]
 
     async def search_cases_by_number(
@@ -108,7 +108,7 @@ class LawInfoClient:
         for params in attempts:
             try:
                 raw, source_url = await self._request("lawSearch.do", params=params)
-                items = self._extract_items(raw, preferred_keys=("prec", "Prec", "판례"))
+                items = self._extract_items(raw, preferred_keys=("prec", "Prec", "판례"), allow_root_item=False)
                 summaries = [self._normalize_case_summary(item, source_url) for item in items]
                 if summaries:
                     return summaries
@@ -158,7 +158,7 @@ class LawInfoClient:
             "page": "1",
         }
         raw, _ = await self._request("lawSearch.do", params=params)
-        items = self._extract_items(raw, preferred_keys=("law", "Law", "법령"))
+        items = self._extract_items(raw, preferred_keys=("law", "Law", "법령"), allow_root_item=False)
         if not items:
             raise LawInfoError(f"공식 법령 검색 결과가 없습니다: {law_name}", status_code=404)
         return items[0]
@@ -275,7 +275,13 @@ class LawInfoClient:
                 result[key] = value
         return {element.tag: result}
 
-    def _extract_items(self, raw: dict[str, Any], *, preferred_keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    def _extract_items(
+        self,
+        raw: dict[str, Any],
+        *,
+        preferred_keys: tuple[str, ...],
+        allow_root_item: bool = True,
+    ) -> list[dict[str, Any]]:
         candidates: list[Any] = []
 
         def walk(value: Any) -> None:
@@ -299,7 +305,7 @@ class LawInfoClient:
         if flattened:
             return flattened
 
-        if isinstance(raw, dict) and not self._find_api_error(raw)[0]:
+        if allow_root_item and isinstance(raw, dict) and not self._find_api_error(raw)[0]:
             return [raw]
         return []
 

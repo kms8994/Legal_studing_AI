@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: light;
-  --bg: #eef2f7;
+  --bg: #f5f7fb;
   --surface: #ffffff;
   --surface-soft: #f8fafc;
   --text: #0f172a;
@@ -211,6 +211,7 @@ input[type="file"] {
 .workspace {
   min-width: 0;
   padding: 22px;
+  overflow-x: hidden;
 }
 
 .topbar {
@@ -279,40 +280,152 @@ input[type="file"] {
 
 .diagram-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-items: stretch;
 }
 
 .diagram-card {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  overflow: auto;
-  border: 1px solid #263244;
+  min-height: clamp(360px, 48vh, 620px);
+  overflow: hidden;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #111827;
-  padding: 14px;
+  background: var(--surface);
+  padding: 16px;
 }
 
 .diagram-card.large {
-  grid-row: span 2;
+  grid-row: auto;
 }
 
 .diagram-card h3 {
-  margin-bottom: 8px;
-  color: #f8fafc;
+  margin-bottom: 12px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.diagram-summary {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.diagram-summary span {
+  display: block;
+  margin-bottom: 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.diagram-summary ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diagram-summary li {
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.diagram-summary strong {
+  display: inline;
+  margin-right: 6px;
+  color: var(--text);
+  font-weight: 900;
+}
+
+.diagram-summary em {
+  color: #475569;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.diagram-summary q {
+  color: #334155;
+  quotes: none;
 }
 
 .diagram-card .mermaid {
   display: flex;
+  flex: 1;
+  align-items: center;
   justify-content: center;
-  min-width: 640px;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
 }
 
 .diagram-card svg {
   max-width: 100%;
   height: auto;
-  max-height: 520px;
+  max-height: clamp(300px, 42vh, 540px);
+  overflow: visible;
+}
+
+.diagram-card svg .node rect,
+.diagram-card svg .node polygon,
+.diagram-card svg .node circle,
+.diagram-card svg .node ellipse {
+  filter: none;
+  rx: 8px;
+  ry: 8px;
+}
+
+.diagram-card svg .nodeLabel,
+.diagram-card svg .label,
+.diagram-card svg .edgeLabel {
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.diagram-card svg .nodeLabel strong {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.diagram-card svg .nodeLabel .node-desc {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.diagram-card svg .edgeLabel {
+  background: transparent !important;
+  color: #000000 !important;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.diagram-card svg .edgeLabel,
+.diagram-card svg .edgeLabel p,
+.diagram-card svg .edgeLabel span,
+.diagram-card svg .edgeLabel div {
+  background: transparent !important;
+  color: #000000 !important;
+}
+
+.diagram-card svg .edgeLabel rect,
+.diagram-card svg .labelBkg {
+  fill: transparent !important;
+  opacity: 0 !important;
+}
+
+.diagram-card svg .flowchart-link {
+  stroke: #64748b !important;
+  stroke-width: 1.6px;
 }
 
 .evidence-band {
@@ -458,5 +571,39 @@ a {
 
   .diagram-card.large {
     grid-row: auto;
+  }
+}
+
+@media (max-width: 1320px) {
+  .diagram-card {
+    min-height: 420px;
+  }
+
+  .diagram-card svg {
+    max-height: 560px;
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace {
+    padding: 14px;
+  }
+
+  .metric-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .info-card {
+    min-width: 0;
+  }
+
+  .diagram-card {
+    min-height: 360px;
+    padding: 12px;
+  }
+
+  .diagram-card svg {
+    max-height: 460px;
   }
 }
