@@ -63,3 +63,18 @@ class StatuteLink(BaseModel):
 
 class StatuteLinkResponse(BaseModel):
     links: list[StatuteLink]
+
+
+class LegalTermRequest(BaseModel):
+    text: str
+
+
+class LegalTerm(BaseModel):
+    term: str
+    definition: str
+    category: str
+    source: Literal["dictionary"]
+
+
+class LegalTermResponse(BaseModel):
+    terms: list[LegalTerm]

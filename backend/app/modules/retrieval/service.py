@@ -9,6 +9,8 @@ from app.modules.retrieval.ranker import filter_ranked_chunks
 from app.modules.retrieval.schemas import (
     EvidenceChunk,
     LawInfoDiagnosticResponse,
+    LegalTerm,
+    LegalTermResponse,
     RetrievalEntityHints,
     RetrievalResult,
     StatuteLink,
@@ -23,6 +25,28 @@ CASE_NUMBER_PATTERN = re.compile(
 LAW_NAME_PATTERN = re.compile(r"[가-힣A-Za-z0-9·\s]+(?:법|규칙)(?=\s|$|제)")
 ARTICLE_PATTERN = re.compile(r"제\s*\d+\s*조(?:의\s*\d+)?")
 KEYWORD_PATTERN = re.compile(r"[가-힣A-Za-z0-9]{2,}")
+
+LEGAL_TERM_DICTIONARY: dict[str, tuple[str, str]] = {
+    "과세처분": ("세무서 등 과세관청이 세금을 부과하거나 정정하는 행정처분입니다.", "조세"),
+    "귀속": ("권리, 이익, 책임이 특정 사람이나 법률관계에 속하게 되는 것을 말합니다.", "민사/조세"),
+    "기각": ("법원이 청구나 신청을 이유 없다고 보아 받아들이지 않는 결정입니다.", "소송"),
+    "납세의무": ("법률상 세금을 납부해야 하는 의무입니다.", "조세"),
+    "대금": ("매매 등 계약에서 물건이나 권리의 대가로 지급하는 돈입니다.", "민사"),
+    "배당": ("회사 이익이나 잔여재산을 주주 등에게 나누어 주는 것을 말합니다.", "회사"),
+    "부과처분": ("행정청이 세금이나 부담금을 납부하도록 정하는 처분입니다.", "행정/조세"),
+    "상계": ("서로 같은 종류의 채권을 맞비겨 소멸시키는 의사표시입니다.", "민사"),
+    "소각": ("주식이나 채권 등을 없애 법률상 효력을 소멸시키는 절차입니다.", "회사"),
+    "수증자": ("증여를 받는 사람입니다.", "민사/세법"),
+    "유류분": ("상속인이 최소한으로 보장받는 상속 재산 비율입니다.", "상속"),
+    "의제": ("실제와 다르더라도 법률상 특정한 것으로 보아 취급하는 것입니다.", "공통"),
+    "의제배당": ("실제 배당이 아니더라도 세법상 배당을 받은 것으로 보아 과세하는 금액입니다.", "조세"),
+    "입증책임": ("어떤 사실을 증명하지 못했을 때 불이익을 부담하는 책임입니다.", "소송"),
+    "증여": ("대가 없이 재산을 넘겨주는 계약입니다.", "민사/세법"),
+    "증여이익": ("증여나 그와 유사한 거래로 얻은 경제적 이익입니다.", "조세"),
+    "처분": ("행정청의 공권력 행사나 법률상 권리 변동 행위를 말합니다.", "행정"),
+    "취소청구": ("행정처분이나 법률행위의 효력을 없애 달라고 구하는 청구입니다.", "행정/소송"),
+    "항소": ("제1심 판결에 불복해 상급 법원에 다시 판단을 구하는 절차입니다.", "소송"),
+}
 
 
 class RetrievalService:
@@ -212,6 +236,23 @@ class RetrievalService:
                     )
                 )
         return StatuteLinkResponse(links=links)
+
+    def build_legal_terms(self, text: str) -> LegalTermResponse:
+        terms: list[LegalTerm] = []
+        selected_terms: list[str] = []
+        for term in sorted(LEGAL_TERM_DICTIONARY, key=len, reverse=True):
+            if term in text and not any(term in selected for selected in selected_terms):
+                definition, category = LEGAL_TERM_DICTIONARY[term]
+                selected_terms.append(term)
+                terms.append(
+                    LegalTerm(
+                        term=term,
+                        definition=definition,
+                        category=category,
+                        source="dictionary",
+                    )
+                )
+        return LegalTermResponse(terms=terms[:16])
 
     def extract_statute_references(self, text: str) -> list[tuple[str, str]]:
         pattern = re.compile(

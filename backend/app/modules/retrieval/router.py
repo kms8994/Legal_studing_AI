@@ -2,6 +2,8 @@ from fastapi import APIRouter
 
 from app.modules.retrieval.schemas import (
     LawInfoDiagnosticResponse,
+    LegalTermRequest,
+    LegalTermResponse,
     RetrievalRequest,
     RetrievalResult,
     StatuteLinkRequest,
@@ -32,6 +34,12 @@ async def analyze_query(request: RetrievalRequest) -> ApiResponse[RetrievalResul
 @router.post("/statute-links", response_model=ApiResponse[StatuteLinkResponse])
 async def statute_links(request: StatuteLinkRequest) -> ApiResponse[StatuteLinkResponse]:
     result = await RetrievalService().build_statute_links(request.text)
+    return ApiResponse(data=result)
+
+
+@router.post("/legal-terms", response_model=ApiResponse[LegalTermResponse])
+async def legal_terms(request: LegalTermRequest) -> ApiResponse[LegalTermResponse]:
+    result = RetrievalService().build_legal_terms(request.text)
     return ApiResponse(data=result)
 
 
