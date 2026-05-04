@@ -120,7 +120,6 @@ function parseMermaidFlow(code: string): ParsedDiagram {
   const nodeMap = new Map<string, Node<DiagramNodeData>>();
   const edges: Edge[] = [];
   const nodePattern = /([A-Za-z][\w-]*)\s*\["([\s\S]*?)"\](?:::([\w-]+))?/g;
-  const edgePattern = /([A-Za-z][\w-]*)\s*[-.=]+>\s*(?:\|([^|]+)\|\s*)?([A-Za-z][\w-]*)/g;
 
   let nodeMatch: RegExpExecArray | null;
   while ((nodeMatch = nodePattern.exec(code)) !== null) {
@@ -139,11 +138,10 @@ function parseMermaidFlow(code: string): ParsedDiagram {
     });
   }
 
-  let edgeMatch: RegExpExecArray | null;
-  while ((edgeMatch = edgePattern.exec(code)) !== null) {
-    const source = edgeMatch[1];
-    const label = edgeMatch[2] ? stripHtml(decodeLabel(edgeMatch[2])) : "";
-    const target = edgeMatch[3];
+  for (const line of code.split(/\r?\n/)) {
+    const parsedEdge = parseEdgeLine(line);
+    if (!parsedEdge) continue;
+    const { source, label, target } = parsedEdge;
     ensureNode(nodeMap, source);
     ensureNode(nodeMap, target);
     edges.push({
@@ -165,6 +163,33 @@ function parseMermaidFlow(code: string): ParsedDiagram {
     nodes: Array.from(nodeMap.values()),
     edges,
   };
+}
+
+function parseEdgeLine(line: string) {
+  const cleaned = line.trim();
+  if (!cleaned || cleaned.startsWith("flowchart") || cleaned.startsWith("classDef") || cleaned.startsWith("class ")) {
+    return null;
+  }
+
+  const arrowMatch = cleaned.match(/^(.*?)\s*(?:-->|---|==>|-.->)\s*(.*)$/);
+  if (!arrowMatch) return null;
+
+  const source = extractNodeId(arrowMatch[1]);
+  let rest = arrowMatch[2].trim();
+  let label = "";
+  const labelMatch = rest.match(/^\|([^|]+)\|\s*(.*)$/);
+  if (labelMatch) {
+    label = stripHtml(decodeLabel(labelMatch[1]));
+    rest = labelMatch[2].trim();
+  }
+  const target = extractNodeId(rest);
+  if (!source || !target || source === target) return null;
+  return { source, label, target };
+}
+
+function extractNodeId(value: string) {
+  const match = value.trim().match(/^([A-Za-z][\w-]*)/);
+  return match?.[1] ?? "";
 }
 
 function ensureNode(nodeMap: Map<string, Node<DiagramNodeData>>, id: string) {

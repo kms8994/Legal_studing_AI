@@ -289,7 +289,7 @@ input[type="file"] {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: clamp(360px, 48vh, 620px);
+  min-height: auto;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -316,6 +316,8 @@ input[type="file"] {
   border-radius: 8px;
   background: #f8fafc;
   padding: 12px;
+  max-height: min(28svh, 260px);
+  overflow: auto;
 }
 
 .diagram-summary span {
@@ -430,7 +432,8 @@ input[type="file"] {
 
 .flow-diagram {
   flex: 1;
-  min-height: clamp(300px, 42vh, 560px);
+  height: clamp(320px, 46svh, 680px);
+  min-height: 0;
   overflow: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -448,6 +451,11 @@ input[type="file"] {
 .flow-diagram .react-flow__edge-text {
   fill: #0f172a;
   font-weight: 800;
+}
+
+.flow-diagram .react-flow__edge path {
+  stroke: #64748b;
+  stroke-width: 2;
 }
 
 .legal-node {
@@ -513,7 +521,7 @@ input[type="file"] {
 
 .assist-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 
@@ -574,6 +582,18 @@ input[type="file"] {
   font-size: 13px;
   font-weight: 900;
   outline: none;
+}
+
+.diagram-summary .term-chip {
+  display: inline;
+  min-height: 0;
+  border: 0;
+  border-bottom: 1px dotted #0f766e;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: #0f766e;
+  line-height: inherit;
 }
 
 .term-tooltip {
@@ -752,11 +772,7 @@ a {
 
 @media (max-width: 1320px) {
   .diagram-card {
-    min-height: 420px;
-  }
-
-  .diagram-card svg {
-    max-height: 560px;
+    min-height: auto;
   }
 }
 
@@ -775,11 +791,9 @@ a {
   }
 
   .diagram-card {
-    min-height: 360px;
     padding: 12px;
   }
-
-  .diagram-card svg {
-    max-height: 460px;
+  .flow-diagram {
+    height: clamp(300px, 52svh, 520px);
   }
 }

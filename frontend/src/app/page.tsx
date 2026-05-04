@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useState } from "react";
 import ReactFlowDiagram from "./ReactFlowDiagram";
 
 type PersonaMode = "expert" | "general";
@@ -99,21 +99,6 @@ export default function HomePage() {
   const [legalTerms, setLegalTerms] = useState<LegalTerm[]>([]);
 
   const hasResult = Boolean(expertResult || generalResult);
-
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
-    script.async = true;
-    script.onload = () => initializeMermaid();
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
-
-  useEffect(() => {
-    renderMermaid();
-  }, [expertResult]);
 
   const statusText = useMemo(() => {
     if (loading) return "분석 중";
@@ -341,12 +326,25 @@ function ExpertView({
       </div>
 
       <RetrievalNotice result={result} />
-      <AnalysisAssistPanel legalTerms={legalTerms} statuteLinks={statuteLinks} />
+      <AnalysisAssistPanel statuteLinks={statuteLinks} />
 
       <div className="diagram-layout">
-        <DiagramCard diagram={result.diagrams.party_relation} evidenceChunks={result.evidence_chunks} large />
-        <DiagramCard diagram={result.diagrams.event_timeline} evidenceChunks={result.evidence_chunks} />
-        <DiagramCard diagram={result.diagrams.legal_reasoning} evidenceChunks={result.evidence_chunks} />
+        <DiagramCard
+          diagram={result.diagrams.party_relation}
+          evidenceChunks={result.evidence_chunks}
+          legalTerms={legalTerms}
+          large
+        />
+        <DiagramCard
+          diagram={result.diagrams.event_timeline}
+          evidenceChunks={result.evidence_chunks}
+          legalTerms={legalTerms}
+        />
+        <DiagramCard
+          diagram={result.diagrams.legal_reasoning}
+          evidenceChunks={result.evidence_chunks}
+          legalTerms={legalTerms}
+        />
       </div>
 
       <div className="evidence-band">
@@ -412,14 +410,9 @@ function GeneralView({ result }: { result: GeneralResponse }) {
   );
 }
 
-function AnalysisAssistPanel({
-  legalTerms,
-  statuteLinks,
-}: {
-  legalTerms: LegalTerm[];
-  statuteLinks: StatuteLink[];
-}) {
-  if (statuteLinks.length === 0 && legalTerms.length === 0) {
+function AnalysisAssistPanel({ statuteLinks }: { statuteLinks: StatuteLink[] }) {
+  const legalTerms: LegalTerm[] = [];
+  if (statuteLinks.length === 0) {
     return null;
   }
 
@@ -464,20 +457,39 @@ function LegalTermTooltip({ term, definition }: { term: string; definition: stri
   );
 }
 
+function TextWithLegalTerms({ text, terms }: { text: string; terms: LegalTerm[] }) {
+  if (!text || terms.length === 0) return <>{text}</>;
+  const sortedTerms = [...terms].sort((a, b) => b.term.length - a.term.length);
+  const pattern = new RegExp(`(${sortedTerms.map((term) => escapeRegExp(term.term)).join("|")})`, "g");
+  return (
+    <>
+      {text.split(pattern).map((part, index) => {
+        const matched = sortedTerms.find((term) => term.term === part);
+        if (!matched) return <span key={`${part}-${index}`}>{part}</span>;
+        return (
+          <LegalTermTooltip definition={matched.definition} key={`${part}-${index}`} term={matched.term} />
+        );
+      })}
+    </>
+  );
+}
+
 function DiagramCard({
   diagram,
   evidenceChunks,
+  legalTerms,
   large = false,
 }: {
   diagram: MermaidDiagram;
   evidenceChunks: MvpAnalyzeResponse["evidence_chunks"];
+  legalTerms: LegalTerm[];
   large?: boolean;
 }) {
   const readableCode = normalizeDiagramCode(diagram.code);
   return (
     <article className={`diagram-card ${large ? "large" : ""}`}>
       <h3>{diagram.title}</h3>
-      <DiagramTextSummary diagram={diagram} evidenceChunks={evidenceChunks} />
+      <DiagramTextSummary diagram={diagram} evidenceChunks={evidenceChunks} legalTerms={legalTerms} />
       <ReactFlowDiagram code={readableCode} />
     </article>
   );
@@ -486,9 +498,11 @@ function DiagramCard({
 function DiagramTextSummary({
   diagram,
   evidenceChunks,
+  legalTerms,
 }: {
   diagram: MermaidDiagram;
   evidenceChunks: MvpAnalyzeResponse["evidence_chunks"];
+  legalTerms: LegalTerm[];
 }) {
   const items = extractDiagramItems(diagram.code);
   const source = evidenceChunks[0];
@@ -502,7 +516,11 @@ function DiagramTextSummary({
           {items.map((item, index) => (
             <li key={`${item.title}-${index}`}>
               <strong>{item.title}</strong>
-              {item.detail && <em>{item.detail}</em>}
+              {item.detail && (
+                <em>
+                  <TextWithLegalTerms terms={legalTerms} text={item.detail} />
+                </em>
+              )}
             </li>
           ))}
         </ul>
@@ -512,8 +530,10 @@ function DiagramTextSummary({
           <span>근거 원문</span>
           <ul>
             {excerpts.map((excerpt, index) => (
-              <li key={`${excerpt}-${index}`}>
-                <q>{excerpt}</q>
+            <li key={`${excerpt}-${index}`}>
+                <q>
+                  <TextWithLegalTerms terms={legalTerms} text={excerpt} />
+                </q>
               </li>
             ))}
           </ul>
@@ -616,35 +636,6 @@ function fileToBase64(file: File) {
   });
 }
 
-function initializeMermaid() {
-  if (!window.mermaid) return;
-  window.mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: "loose",
-    theme: "base",
-    themeVariables: {
-      background: "#111827",
-      primaryTextColor: "#f8fafc",
-      lineColor: "#d1d5db",
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
-    },
-    flowchart: {
-      htmlLabels: true,
-      curve: "linear",
-      nodeSpacing: 24,
-      rankSpacing: 32,
-      padding: 8,
-    },
-  });
-}
-
-function renderMermaid() {
-  window.setTimeout(() => {
-    if (!window.mermaid) return;
-    window.mermaid.run({ querySelector: ".mermaid" });
-  }, 0);
-}
-
 function normalizeDiagramCode(code: string) {
   return emphasizeMermaidLabels(forceReadableDiagramTheme(code.replace(/flowchart\s+LR/g, "flowchart TD")));
 }
@@ -700,6 +691,10 @@ function decodeMermaidLabel(value: string) {
   return value.replace(/&quot;/g, "\"").replace(/&#39;/g, "'").trim();
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function clipText(text: string, limit: number) {
   return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;
 }
@@ -726,13 +721,4 @@ function emphasizeMermaidLabels(code: string) {
     const [title, ...description] = label.split("<br/>");
     return `["<strong>${title}</strong><br/><span class='node-desc'>${description.join("<br/>")}</span>"]`;
   });
-}
-
-declare global {
-  interface Window {
-    mermaid?: {
-      initialize: (config: Record<string, unknown>) => void;
-      run: (config: { querySelector: string }) => Promise<void>;
-    };
-  }
 }
