@@ -103,7 +103,7 @@ class RetrievalService:
                 document = await LawInfoClient().get_case_by_number(hints.case_number)
                 chunks = self._case_document_to_chunks(document, fallback_case_number=hints.case_number)
                 if not chunks:
-                    message = "공식 판례는 찾았지만 본문을 가져오지 못했습니다."
+                    message = self._empty_case_body_message(document)
             else:
                 summaries = []
                 for search_query in self._official_search_queries(query, hints):
@@ -131,7 +131,7 @@ class RetrievalService:
                 if not summaries:
                     message = "공식 국가법령정보 API 검색 결과가 없습니다."
                 elif not chunks:
-                    message = "공식 검색 결과에서 판례 본문을 가져오지 못했습니다."
+                    message = "공식 API 목록 검색은 성공했지만 상세 판례 본문 API가 빈 응답을 반환했습니다."
         except LawInfoError as exc:
             chunks = []
             message = str(exc)
@@ -251,6 +251,21 @@ class RetrievalService:
             overlap=150,
         )
         return [EvidenceChunk(**chunk) for chunk in raw_chunks]
+
+    def _empty_case_body_message(self, document: dict[str, object]) -> str:
+        case_id = document.get("id")
+        raw = document.get("raw")
+        summary = raw.get("summary") if isinstance(raw, dict) else None
+        source_name = ""
+        if isinstance(summary, dict):
+            summary_raw = summary.get("raw")
+            if isinstance(summary_raw, dict):
+                source_name = str(summary_raw.get("데이터출처명") or "")
+        suffix = f" 데이터 출처: {source_name}." if source_name else ""
+        return (
+            "공식 API 목록 검색은 성공했지만 상세 판례 본문 API가 빈 응답을 반환했습니다."
+            f" 판례 ID: {case_id}.{suffix}"
+        )
 
     async def _search_cases_with_fallback_scopes(self, query: str, *, top_k: int):
         client = LawInfoClient()

@@ -40,17 +40,38 @@ class LawInfoClient:
             raise LawInfoError(f"사건번호로 공식 판례를 찾을 수 없습니다: {case_number}", status_code=404)
 
         document = await self.get_case_by_id(exact.id, title=exact.title)
+        document.case_number = exact.case_number
+        document.raw["summary"] = asdict(exact)
         return asdict(document)
 
     async def get_case_by_id(self, case_id: str, *, title: str | None = None) -> CaseDocument:
-        params = {
-            "target": "prec",
-            "ID": case_id,
-            "type": "HTML",
-            "mobileYn": "Y",
-        }
-        raw, source_url = await self._request("lawService.do", params=params, expect_json=False)
-        body_text = self._html_to_text(str(raw))
+        attempts = (
+            {
+                "target": "prec",
+                "ID": case_id,
+                "type": "HTML",
+                "mobileYn": "Y",
+            },
+            {
+                "target": "prec",
+                "ID": case_id,
+                "type": "HTML",
+                "mobileYn": "",
+            },
+            {
+                "target": "prec",
+                "ID": case_id,
+                "type": "HTML",
+            },
+        )
+        raw = ""
+        source_url = ""
+        body_text = ""
+        for params in attempts:
+            raw, source_url = await self._request("lawService.do", params=params, expect_json=False)
+            body_text = self._html_to_text(str(raw))
+            if body_text:
+                break
         return CaseDocument(
             id=case_id,
             title=title or "",
@@ -378,9 +399,11 @@ class LawInfoClient:
         return None
 
     def _absolute_law_url(self, link: str) -> str:
-        if link.startswith("http://") or link.startswith("https://"):
-            return link
-        return f"https://www.law.go.kr{link if link.startswith('/') else '/' + link}"
+        url = link if link.startswith(("http://", "https://")) else f"https://www.law.go.kr{link if link.startswith('/') else '/' + link}"
+        parsed = urllib.parse.urlsplit(url)
+        query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+        safe_query = urllib.parse.urlencode([(key, value) for key, value in query if key.upper() != "OC"])
+        return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, safe_query, parsed.fragment))
 
     def _compact(self, value: str) -> str:
         return re.sub(r"\s+", "", value)
