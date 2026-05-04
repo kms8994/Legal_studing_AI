@@ -39,10 +39,12 @@ class LawInfoClient:
         if exact is None:
             raise LawInfoError(f"사건번호로 공식 판례를 찾을 수 없습니다: {case_number}", status_code=404)
 
-        document = await self.get_case_by_id(exact.id, title=exact.title)
-        document.case_number = exact.case_number
-        document.raw["summary"] = asdict(exact)
-        return asdict(document)
+        document = asdict(await self.get_case_by_id(exact.id, title=exact.title))
+        document["case_number"] = exact.case_number
+        raw = document.get("raw")
+        if isinstance(raw, dict):
+            raw["summary"] = asdict(exact)
+        return document
 
     async def get_case_by_id(self, case_id: str, *, title: str | None = None) -> CaseDocument:
         attempts = (
