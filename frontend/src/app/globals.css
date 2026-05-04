@@ -416,6 +416,18 @@ input[type="file"] {
   overflow: visible;
 }
 
+.flow-diagram svg {
+  max-width: none;
+  height: auto;
+  max-height: none;
+}
+
+.flow-diagram .react-flow__edges svg,
+.flow-diagram .react-flow__background svg {
+  width: 100%;
+  height: 100%;
+}
+
 .diagram-card svg .node rect,
 .diagram-card svg .node polygon,
 .diagram-card svg .node circle,
@@ -473,10 +485,24 @@ input[type="file"] {
   flex: 1;
   height: clamp(320px, 46svh, 680px);
   min-height: 0;
+  width: 100%;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fafafa;
+}
+
+.flow-diagram .react-flow {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+}
+
+.flow-diagram .react-flow__renderer,
+.flow-diagram .react-flow__zoompane,
+.flow-diagram .react-flow__pane {
+  width: 100%;
+  height: 100%;
 }
 
 .flow-diagram .react-flow__viewport {
