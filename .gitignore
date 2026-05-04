@@ -21,6 +21,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+frontend/next-dev.*.log
+
+# Local reference imports
+styleseed-main/
 
 # OS / editor
 .DS_Store
