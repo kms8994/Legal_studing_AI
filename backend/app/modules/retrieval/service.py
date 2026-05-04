@@ -1,4 +1,5 @@
 import re
+from urllib.parse import quote
 
 from app.core.config import settings
 from app.infrastructure.cache import build_cache_key
@@ -10,6 +11,8 @@ from app.modules.retrieval.schemas import (
     LawInfoDiagnosticResponse,
     RetrievalEntityHints,
     RetrievalResult,
+    StatuteLink,
+    StatuteLinkResponse,
 )
 from app.modules.shared import StatusResponse
 
@@ -179,6 +182,49 @@ class RetrievalService:
                 message=str(exc),
             )
 
+    async def build_statute_links(self, text: str) -> StatuteLinkResponse:
+        pairs = self.extract_statute_references(text)
+        links: list[StatuteLink] = []
+        client = LawInfoClient()
+        for law_name, article in pairs[:12]:
+            fallback_url = self._fallback_statute_url(law_name, article)
+            try:
+                article_data = await client.get_statute_article(law_name, article)
+                links.append(
+                    StatuteLink(
+                        law_name=law_name,
+                        article=article,
+                        title=f"{law_name} {article}",
+                        url=str(article_data.get("source_url") or fallback_url),
+                        status="official",
+                        excerpt=self._trim_article_text(str(article_data.get("body_text") or "")),
+                    )
+                )
+            except LawInfoError:
+                links.append(
+                    StatuteLink(
+                        law_name=law_name,
+                        article=article,
+                        title=f"{law_name} {article}",
+                        url=fallback_url,
+                        status="fallback",
+                        excerpt=None,
+                    )
+                )
+        return StatuteLinkResponse(links=links)
+
+    def extract_statute_references(self, text: str) -> list[tuple[str, str]]:
+        pattern = re.compile(
+            r"([가-힣A-Za-z0-9·\s]{1,40}?(?:법|규칙|령))\s*(제\s*\d+\s*조(?:의\s*\d+)?)",
+        )
+        pairs: list[tuple[str, str]] = []
+        for match in pattern.finditer(text):
+            law_name = self._clean_law_name(match.group(1))
+            article = self._clean_text(match.group(2).replace(" ", ""))
+            if law_name and article:
+                pairs.append((law_name, article))
+        return self._unique_pairs(pairs)
+
     def _case_document_to_chunks(
         self,
         document: dict[str, object],
@@ -231,6 +277,33 @@ class RetrievalService:
 
     def _clean_text(self, value: str) -> str:
         return re.sub(r"\s+", " ", value).strip()
+
+    def _clean_law_name(self, value: str) -> str:
+        cleaned = self._clean_text(value).strip("「」 ,.")
+        for separator in ("따른", "의", "및", ","):
+            if separator in cleaned:
+                candidate = cleaned.split(separator)[-1].strip("「」 ,.")
+                if candidate.endswith(("법", "규칙", "령")):
+                    return candidate
+        return cleaned
+
+    def _fallback_statute_url(self, law_name: str, article: str) -> str:
+        return f"https://www.law.go.kr/법령/{quote(law_name)}/{quote(article)}"
+
+    def _trim_article_text(self, text: str) -> str | None:
+        cleaned = self._clean_text(text)
+        if not cleaned:
+            return None
+        return cleaned[:260] + ("..." if len(cleaned) > 260 else "")
+
+    def _unique_pairs(self, values: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        seen: set[tuple[str, str]] = set()
+        result: list[tuple[str, str]] = []
+        for value in values:
+            if value not in seen:
+                seen.add(value)
+                result.append(value)
+        return result
 
     def _unique(self, values) -> list[str]:
         seen: set[str] = set()

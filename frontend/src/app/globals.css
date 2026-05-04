@@ -428,6 +428,181 @@ input[type="file"] {
   stroke-width: 1.6px;
 }
 
+.flow-diagram {
+  flex: 1;
+  min-height: clamp(300px, 42vh, 560px);
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.flow-diagram .react-flow__viewport {
+  transition: transform 160ms ease;
+}
+
+.flow-diagram .react-flow__edge-textbg {
+  fill: transparent;
+}
+
+.flow-diagram .react-flow__edge-text {
+  fill: #0f172a;
+  font-weight: 800;
+}
+
+.legal-node {
+  width: 190px;
+  min-height: 54px;
+  display: grid;
+  gap: 5px;
+  align-content: center;
+  border: 2px solid #475569;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+  color: #0f172a;
+  text-align: center;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.legal-node strong {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.legal-node span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.legal-node.partyA,
+.legal-node.partyB {
+  background: #ffffff;
+}
+
+.legal-node.partyA {
+  border-color: #7c3aed;
+}
+
+.legal-node.partyB {
+  border-color: #e11d48;
+}
+
+.legal-node.issue {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.legal-node.rule {
+  border-color: #059669;
+  background: #ecfdf5;
+}
+
+.legal-node.apply {
+  border-color: #ea580c;
+  background: #fff7ed;
+}
+
+.legal-node.decision {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.assist-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: 14px;
+}
+
+.assist-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 14px;
+}
+
+.assist-section h3 {
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.statute-link-list,
+.term-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.statute-link-list a {
+  display: grid;
+  gap: 3px;
+  max-width: 320px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.statute-link-list strong {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.statute-link-list span,
+.statute-link-list em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.term-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  border: 1px dotted #0f766e;
+  border-radius: 999px;
+  background: #f0fdfa;
+  padding: 0 11px;
+  color: #115e59;
+  font-size: 13px;
+  font-weight: 900;
+  outline: none;
+}
+
+.term-tooltip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  width: min(280px, 72vw);
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.14);
+}
+
+.term-chip:hover .term-tooltip,
+.term-chip:focus .term-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .evidence-band {
   justify-content: space-between;
   gap: 14px;
@@ -565,7 +740,8 @@ a {
   }
 
   .diagram-layout,
-  .general-grid {
+  .general-grid,
+  .assist-panel {
     grid-template-columns: 1fr;
   }
 

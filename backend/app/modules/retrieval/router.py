@@ -1,6 +1,12 @@
 from fastapi import APIRouter
 
-from app.modules.retrieval.schemas import LawInfoDiagnosticResponse, RetrievalRequest, RetrievalResult
+from app.modules.retrieval.schemas import (
+    LawInfoDiagnosticResponse,
+    RetrievalRequest,
+    RetrievalResult,
+    StatuteLinkRequest,
+    StatuteLinkResponse,
+)
 from app.modules.retrieval.service import RetrievalService
 from app.modules.shared import ApiResponse, StatusResponse
 
@@ -20,6 +26,12 @@ async def analyze_query(request: RetrievalRequest) -> ApiResponse[RetrievalResul
         top_k=request.top_k,
         score_threshold=request.score_threshold,
     )
+    return ApiResponse(data=result)
+
+
+@router.post("/statute-links", response_model=ApiResponse[StatuteLinkResponse])
+async def statute_links(request: StatuteLinkRequest) -> ApiResponse[StatuteLinkResponse]:
+    result = await RetrievalService().build_statute_links(request.text)
     return ApiResponse(data=result)
 
 

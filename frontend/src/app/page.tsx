@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import ReactFlowDiagram from "./ReactFlowDiagram";
 
 type PersonaMode = "expert" | "general";
 type InputMode = "text" | "pdf" | "image" | "case";
@@ -53,6 +54,19 @@ type GeneralResponse = {
   limitation: string;
 };
 
+type StatuteLink = {
+  law_name: string;
+  article: string;
+  title: string;
+  url: string;
+  status: "official" | "fallback";
+  excerpt?: string | null;
+};
+
+type StatuteLinkResponse = {
+  links: StatuteLink[];
+};
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
 const sampleText =
@@ -70,6 +84,7 @@ export default function HomePage() {
   const [expertResult, setExpertResult] = useState<MvpAnalyzeResponse | null>(null);
   const [verification, setVerification] = useState<VerificationResponse | null>(null);
   const [generalResult, setGeneralResult] = useState<GeneralResponse | null>(null);
+  const [statuteLinks, setStatuteLinks] = useState<StatuteLink[]>([]);
 
   const hasResult = Boolean(expertResult || generalResult);
 
@@ -102,6 +117,7 @@ export default function HomePage() {
     setExpertResult(null);
     setGeneralResult(null);
     setVerification(null);
+    setStatuteLinks([]);
 
     try {
       const inputText = await resolveInputText();
@@ -122,6 +138,12 @@ export default function HomePage() {
         persona_mode: "expert",
       });
       setExpertResult(result);
+      const statuteText = result.evidence_chunks.map((chunk) => chunk.chunk_text).join("\n");
+      if (statuteText.trim()) {
+        post<StatuteLinkResponse>("/retrieval/statute-links", { text: statuteText })
+          .then((response) => setStatuteLinks(response.links))
+          .catch(() => setStatuteLinks([]));
+      }
 
       try {
         const verify = await post<VerificationResponse>("/verification/check", {
@@ -269,7 +291,7 @@ export default function HomePage() {
 
         {error && <div className="error-box">{error}</div>}
         {!hasResult && !error && <EmptyState panelOpen={panelOpen} />}
-        {expertResult && <ExpertView result={expertResult} verification={verification} />}
+        {expertResult && <ExpertView result={expertResult} statuteLinks={statuteLinks} verification={verification} />}
         {generalResult && <GeneralView result={generalResult} />}
       </section>
     </main>
@@ -278,9 +300,11 @@ export default function HomePage() {
 
 function ExpertView({
   result,
+  statuteLinks,
   verification,
 }: {
   result: MvpAnalyzeResponse;
+  statuteLinks: StatuteLink[];
   verification: VerificationResponse | null;
 }) {
   return (
@@ -292,6 +316,7 @@ function ExpertView({
       </div>
 
       <RetrievalNotice result={result} />
+      <AnalysisAssistPanel evidenceChunks={result.evidence_chunks} statuteLinks={statuteLinks} />
 
       <div className="diagram-layout">
         <DiagramCard diagram={result.diagrams.party_relation} evidenceChunks={result.evidence_chunks} large />
@@ -362,6 +387,61 @@ function GeneralView({ result }: { result: GeneralResponse }) {
   );
 }
 
+function AnalysisAssistPanel({
+  evidenceChunks,
+  statuteLinks,
+}: {
+  evidenceChunks: MvpAnalyzeResponse["evidence_chunks"];
+  statuteLinks: StatuteLink[];
+}) {
+  const sourceText = evidenceChunks.map((chunk) => chunk.chunk_text).join("\n");
+  const terms = findLegalTerms(sourceText);
+
+  if (statuteLinks.length === 0 && terms.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="assist-panel">
+      {statuteLinks.length > 0 && (
+        <div className="assist-section">
+          <h3>원문 조문 링크</h3>
+          <div className="statute-link-list">
+            {statuteLinks.map((link) => (
+              <a href={link.url} key={`${link.law_name}-${link.article}`} rel="noreferrer" target="_blank">
+                <strong>{link.title}</strong>
+                <span>{link.status === "official" ? "공식 API 확인" : "링크 후보"}</span>
+                {link.excerpt && <em>{link.excerpt}</em>}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+      {terms.length > 0 && (
+        <div className="assist-section">
+          <h3>법률용어</h3>
+          <div className="term-chip-list">
+            {terms.map((term) => (
+              <LegalTermTooltip definition={LEGAL_TERMS[term]} key={term} term={term} />
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LegalTermTooltip({ term, definition }: { term: string; definition: string }) {
+  return (
+    <span className="term-chip" tabIndex={0}>
+      {term}
+      <span className="term-tooltip" role="tooltip">
+        {definition}
+      </span>
+    </span>
+  );
+}
+
 function DiagramCard({
   diagram,
   evidenceChunks,
@@ -376,7 +456,7 @@ function DiagramCard({
     <article className={`diagram-card ${large ? "large" : ""}`}>
       <h3>{diagram.title}</h3>
       <DiagramTextSummary diagram={diagram} evidenceChunks={evidenceChunks} />
-      <pre className="mermaid">{readableCode}</pre>
+      <ReactFlowDiagram code={readableCode} />
     </article>
   );
 }
@@ -465,6 +545,30 @@ function EmptyState({ panelOpen }: { panelOpen: boolean }) {
       </p>
     </div>
   );
+}
+
+const LEGAL_TERMS: Record<string, string> = {
+  과세처분: "세무서 등 과세관청이 세금을 부과하거나 정정하는 행정처분입니다.",
+  귀속: "권리나 이익, 책임이 특정 사람이나 법률관계에 속하게 되는 것을 말합니다.",
+  기각: "법원이 청구나 신청을 이유 없다고 보아 받아들이지 않는 결정입니다.",
+  납세의무: "법률상 세금을 납부해야 하는 의무입니다.",
+  대금: "매매 등 계약에서 물건이나 권리의 대가로 지급하는 돈입니다.",
+  부과처분: "행정청이 세금이나 부담금을 납부하도록 정하는 처분입니다.",
+  상계: "서로 같은 종류의 채권을 맞비겨 소멸시키는 의사표시입니다.",
+  소각: "주식이나 채권 등을 없애 법률상 효력을 소멸시키는 절차입니다.",
+  수증자: "증여를 받는 사람입니다.",
+  유류분: "상속인이 최소한으로 보장받는 상속 재산 비율입니다.",
+  의제: "법률상 실제와 다르더라도 특정한 것으로 보아 취급하는 것입니다.",
+  입증책임: "어떤 사실을 증명하지 못했을 때 불이익을 부담하는 책임입니다.",
+  증여: "대가 없이 재산을 넘겨주는 계약입니다.",
+  처분: "행정청의 공권력 행사나 법률상 권리 변동 행위를 말합니다.",
+  항소: "제1심 판결에 불복해 상급 법원에 다시 판단을 구하는 절차입니다.",
+};
+
+function findLegalTerms(text: string) {
+  return Object.keys(LEGAL_TERMS)
+    .filter((term) => text.includes(term))
+    .slice(0, 12);
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {

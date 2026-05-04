@@ -46,3 +46,20 @@ class LawInfoDiagnosticResponse(BaseModel):
     status: Literal["ok", "missing_key", "api_error"]
     message: str
     sample_count: int = 0
+
+
+class StatuteLinkRequest(BaseModel):
+    text: str
+
+
+class StatuteLink(BaseModel):
+    law_name: str
+    article: str
+    title: str
+    url: str
+    status: Literal["official", "fallback"]
+    excerpt: str | None = None
+
+
+class StatuteLinkResponse(BaseModel):
+    links: list[StatuteLink]
