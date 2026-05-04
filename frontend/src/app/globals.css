@@ -358,7 +358,7 @@ input[type="file"] {
   overflow: auto;
 }
 
-.diagram-summary span {
+.diagram-summary > div > span {
   display: block;
   margin-bottom: 6px;
   color: var(--muted);

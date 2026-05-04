@@ -255,15 +255,29 @@ class RetrievalService:
         return LegalTermResponse(terms=terms[:16])
 
     def extract_statute_references(self, text: str) -> list[tuple[str, str]]:
-        pattern = re.compile(
+        pairs: list[tuple[str, str]] = []
+        normalized = self.normalize_query(text)
+        law_pattern = re.compile(r"([가-힣A-Za-z0-9·\s]{1,40}?(?:법|규칙|령))")
+        article_pattern = re.compile(r"제\s*\d+\s*조(?:의\s*\d+)?")
+
+        law_matches = list(law_pattern.finditer(normalized))
+        for index, law_match in enumerate(law_matches):
+            law_name = self._clean_law_name(law_match.group(1))
+            if not law_name:
+                continue
+            next_law_start = law_matches[index + 1].start() if index + 1 < len(law_matches) else len(normalized)
+            window = normalized[law_match.end() : min(next_law_start, law_match.end() + 90)]
+            for article_match in article_pattern.finditer(window):
+                article = self._clean_text(article_match.group(0).replace(" ", ""))
+                pairs.append((law_name, article))
+
+        direct_pattern = re.compile(
             r"([가-힣A-Za-z0-9·\s]{1,40}?(?:법|규칙|령))\s*(제\s*\d+\s*조(?:의\s*\d+)?)",
         )
-        pairs: list[tuple[str, str]] = []
-        for match in pattern.finditer(text):
+        for match in direct_pattern.finditer(normalized):
             law_name = self._clean_law_name(match.group(1))
             article = self._clean_text(match.group(2).replace(" ", ""))
-            if law_name and article:
-                pairs.append((law_name, article))
+            pairs.append((law_name, article))
         return self._unique_pairs(pairs)
 
     def _case_document_to_chunks(
@@ -336,7 +350,7 @@ class RetrievalService:
 
     def _clean_law_name(self, value: str) -> str:
         cleaned = self._clean_text(value).strip("「」 ,.")
-        for separator in ("따른", "의", "및", ","):
+        for separator in ("따른",):
             if separator in cleaned:
                 candidate = cleaned.split(separator)[-1].strip("「」 ,.")
                 if candidate.endswith(("법", "규칙", "령")):

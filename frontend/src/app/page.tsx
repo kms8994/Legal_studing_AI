@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
+import React, { ChangeEvent, useMemo, useState } from "react";
 import ReactFlowDiagram from "./ReactFlowDiagram";
 
 type PersonaMode = "expert" | "general";
@@ -465,7 +465,7 @@ function TextWithLegalTerms({ text, terms }: { text: string; terms: LegalTerm[] 
     <>
       {text.split(pattern).map((part, index) => {
         const matched = sortedTerms.find((term) => term.term === part);
-        if (!matched) return <span key={`${part}-${index}`}>{part}</span>;
+        if (!matched) return <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>;
         return (
           <LegalTermTooltip definition={matched.definition} key={`${part}-${index}`} term={matched.term} />
         );
@@ -665,14 +665,14 @@ function extractExactExcerpts(text: string, diagramTitle: string) {
     return pickSentences(sentences, ["원고", "피고", "청구", "주장", "다투", "책임"], 3);
   }
   if (diagramTitle.includes("흐름")) {
-    return sentences.slice(0, 4).map((sentence) => clipText(sentence, 120));
+    return sentences.slice(0, 4);
   }
   return pickSentences(sentences, ["요건", "판단", "법원", "결론", "조항", "책임"], 3);
 }
 
 function pickSentences(sentences: string[], keywords: string[], limit: number) {
   const picked = sentences.filter((sentence) => keywords.some((keyword) => sentence.includes(keyword)));
-  return (picked.length ? picked : sentences).slice(0, limit).map((sentence) => clipText(sentence, 120));
+  return (picked.length ? picked : sentences).slice(0, limit);
 }
 
 function splitSentences(text: string) {

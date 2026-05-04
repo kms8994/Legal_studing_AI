@@ -119,7 +119,7 @@ async function layoutDiagram(parsed: ParsedDiagram): Promise<ParsedDiagram> {
 function parseMermaidFlow(code: string): ParsedDiagram {
   const nodeMap = new Map<string, Node<DiagramNodeData>>();
   const edges: Edge[] = [];
-  const nodePattern = /([A-Za-z][\w-]*)\s*\["([\s\S]*?)"\](?:::([\w-]+))?/g;
+  const nodePattern = /([^\s\["';]+)\s*\["([\s\S]*?)"\](?:::([\w-]+))?/g;
 
   let nodeMatch: RegExpExecArray | null;
   while ((nodeMatch = nodePattern.exec(code)) !== null) {
@@ -171,24 +171,34 @@ function parseEdgeLine(line: string) {
     return null;
   }
 
-  const arrowMatch = cleaned.match(/^(.*?)\s*(?:-->|---|==>|-.->)\s*(.*)$/);
-  if (!arrowMatch) return null;
-
-  const source = extractNodeId(arrowMatch[1]);
-  let rest = arrowMatch[2].trim();
-  let label = "";
-  const labelMatch = rest.match(/^\|([^|]+)\|\s*(.*)$/);
-  if (labelMatch) {
-    label = stripHtml(decodeLabel(labelMatch[1]));
-    rest = labelMatch[2].trim();
+  const labeledAfterArrow = cleaned.match(/^(.+?)\s*(?:-->|==>|-.->)\s*\|([^|]+)\|\s*(.+)$/);
+  if (labeledAfterArrow) {
+    return buildEdge(labeledAfterArrow[1], labeledAfterArrow[3], labeledAfterArrow[2]);
   }
-  const target = extractNodeId(rest);
+
+  const labeledInsideArrow = cleaned.match(/^(.+?)\s*(?:--|==|-\.)(?!>)\s*([^|-]+?)\s*(?:-->|==>|-.->)\s*(.+)$/);
+  if (labeledInsideArrow) {
+    return buildEdge(labeledInsideArrow[1], labeledInsideArrow[3], labeledInsideArrow[2]);
+  }
+
+  const plainArrow = cleaned.match(/^(.+?)\s*(?:-->|---|==>|-.->)\s*(.+)$/);
+  if (plainArrow) {
+    return buildEdge(plainArrow[1], plainArrow[2], "");
+  }
+
+  return null;
+}
+
+function buildEdge(sourceValue: string, targetValue: string, labelValue: string) {
+  const source = extractNodeId(sourceValue);
+  const target = extractNodeId(targetValue);
+  const label = stripHtml(decodeLabel(labelValue));
   if (!source || !target || source === target) return null;
   return { source, label, target };
 }
 
 function extractNodeId(value: string) {
-  const match = value.trim().match(/^([A-Za-z][\w-]*)/);
+  const match = value.trim().match(/^([^\s\["';:]+)/);
   return match?.[1] ?? "";
 }
 
